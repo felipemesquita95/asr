@@ -4,4 +4,5 @@ load_dotenv()
 
 class DeepLearningSubsystem:
     def __init__(self, ) -> None:
-        print("init ...")
+        
+        print("Inicializando Subsistema de aprendizado profundo...")

@@ -8,23 +8,15 @@ import os
 
 load_dotenv()
 
-audio_path = os.getenv('UTTERANCES_PATH')
-output_path = os.getenv('SAVES_PATH')
-sampling_rate = int(os.getenv('UTTERANCES_SAMPLING_RATE'))
-num_speakers = int(os.getenv('NUM_SPEAKERS'))
-num_utterances = int(os.getenv('NUM_UTTERANCES'))
-num_mfccs = int(os.getenv('NUM_MFCCS'))
-
 def main():
     
-    preprocessing_subsys = PreprocessingSubsystem(audio_path, output_path, sampling_rate, num_speakers, num_utterances, num_mfccs)
+    preprocessing_subsys = PreprocessingSubsystem()
     feature_adj_subsys = FeatureAdjustmentSubsystem()
     deep_learning_subsys = DeepLearningSubsystem()
-
     asr_sys = AutomaticSpeakerRecognitionSystem(preprocessing_subsys, feature_adj_subsys, deep_learning_subsys)
 
-       
-    asr_sys.preprocessing_subsys.extract_features_from_brsd()
+    asr_sys.preprocessing_subsys.preprocess_signal()
+    asr_sys.training_data, asr_sys.test_data, asr_sys.training_labels, asr_sys.test_labels = asr_sys.feature_adj_subsys.prepare_to_experiment()
 
 
 if __name__ == "__main__":

@@ -16,5 +16,11 @@ class AutomaticSpeakerRecognitionSystem:
         self.preprocessing_subsys = preprocessing_subsys
         self.feature_adj_subsys = feature_adjustment_subsystem
         self.deep_learning_subsys = deep_learning_subsystem
-        
-        print("init ...")
+
+        self.training_data = []
+        self.test_data = []
+        self.training_labels = []
+        self.test_labels = []
+
+        print("Inicializando sistema de reconhecimento automático de locutor...")
+
