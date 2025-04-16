@@ -9,15 +9,20 @@ import os
 load_dotenv()
 
 def main():
-    
+    # Instanciando os subsistemas
     preprocessing_subsys = PreprocessingSubsystem()
     feature_adj_subsys = FeatureAdjustmentSubsystem()
     deep_learning_subsys = DeepLearningSubsystem()
-    asr_sys = AutomaticSpeakerRecognitionSystem(preprocessing_subsys, feature_adj_subsys, deep_learning_subsys)
+    
+    # Criando o sistema de reconhecimento de locutor
+    asr = AutomaticSpeakerRecognitionSystem(preprocessing_subsys, feature_adj_subsys, deep_learning_subsys)
 
-    asr_sys.preprocessing_subsys.preprocess_signal()
-    asr_sys.training_data, asr_sys.test_data, asr_sys.training_labels, asr_sys.test_labels = asr_sys.feature_adj_subsys.prepare_to_experiment()
+    # Preparando os dados para o experimento
+    asr.training_data, asr.test_data, asr.training_labels, asr.test_labels = asr.feature_adj_subsys.prepare_to_experiment()
 
-
+    # Treinando e avaliando o modelo
+    asr.deep_learning_subsys.conjurar_modelo(asr.training_data, asr.training_labels, asr.test_data, asr.test_labels)
+    
 if __name__ == "__main__":
     main()
+

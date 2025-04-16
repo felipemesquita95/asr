@@ -121,7 +121,23 @@ class FeatureAdjustmentSubsystem:
         training_labels = np.array(training_labels)
         test_labels = np.array(test_labels)
 
+        training_data, test_data = self.tensors_zscore(training_data, test_data)
+
+        print(training_data.shape, training_labels.shape, test_data.shape, test_labels.shape)
+
         return training_data, test_data, training_labels, test_labels
+
+    def tensors_zscore(self, training_data, test_data):
+        
+        mean = np.mean(training_data, axis=(0, 2), keepdims=True)
+        std = np.std(training_data, axis=(0, 2), keepdims=True)
+
+        print(mean.shape, std.shape)
+
+        zscore_training_data = (training_data - mean) / std
+        zscore_test_data = (test_data - mean) / std
+    
+        return zscore_training_data, zscore_test_data
 
     def prepare_to_experiment(self):
         max_frames=0
@@ -153,21 +169,7 @@ class FeatureAdjustmentSubsystem:
                 #npy_list = [f'mfccs_{max_frames}.npy', f'delta_{max_frames}.npy', f'deltaDelta_{max_frames}.npy']
                 self.standardize(mfccs_path, npy_list)
         
-        training_data = []
-        test_data = []
-        training_labels = []
-        test_labels = []
-
-        training_data, test_data, training_labels, test_labels = self.organize_data()
         
-        mean = np.mean(training_data, axis=(0, 2), keepdims=True)
-        std = np.std(training_data, axis=(0, 2), keepdims=True)
+        training_data, test_data, training_labels, test_labels = self.organize_data()
 
-        print(mean.shape, std.shape)
-
-        training_data = (training_data - mean) / std
-        test_data = (test_data - mean) / std
-
-        print(training_data.shape, training_labels.shape, test_data.shape, test_labels.shape)
-    
         return training_data, test_data, training_labels, test_labels

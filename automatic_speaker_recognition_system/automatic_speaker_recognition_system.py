@@ -21,6 +21,6 @@ class AutomaticSpeakerRecognitionSystem:
         self.test_data = []
         self.training_labels = []
         self.test_labels = []
-
+        self.history = None
+    
         print("Inicializando sistema de reconhecimento automático de locutor...")
-
