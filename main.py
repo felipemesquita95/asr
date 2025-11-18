@@ -9,14 +9,45 @@ import os
 load_dotenv()
 
 def main():
-    
+
     preprocessing_subsys = PreprocessingSubsystem()
     feature_adj_subsys = FeatureAdjustmentSubsystem()
     deep_learning_subsys = DeepLearningSubsystem()
     asr_sys = AutomaticSpeakerRecognitionSystem(preprocessing_subsys, feature_adj_subsys, deep_learning_subsys)
 
+    # Passo 1: Pré-processar os sinais de áudio
+    print("\n" + "="*80)
+    print("PASSO 1: PRÉ-PROCESSAMENTO DE SINAIS")
+    print("="*80)
     asr_sys.preprocessing_subsys.preprocess_signal()
+
+    # Passo 2: Preparar dados para experimento (ajuste e normalização)
+    print("\n" + "="*80)
+    print("PASSO 2: PREPARAÇÃO DOS DADOS")
+    print("="*80)
     asr_sys.training_data, asr_sys.test_data, asr_sys.training_labels, asr_sys.test_labels = asr_sys.feature_adj_subsys.prepare_to_experiment()
+
+    # Passo 3: Treinar o modelo de deep learning
+    print("\n" + "="*80)
+    print("PASSO 3: TREINAMENTO DO MODELO")
+    print("="*80)
+    asr_sys.deep_learning_subsys.train(
+        asr_sys.training_data,
+        asr_sys.training_labels,
+        asr_sys.test_data,
+        asr_sys.test_labels
+    )
+
+    # Passo 4: Salvar modelo e gráficos
+    print("\n" + "="*80)
+    print("PASSO 4: SALVANDO RESULTADOS")
+    print("="*80)
+    asr_sys.deep_learning_subsys.save_model()
+    asr_sys.deep_learning_subsys.plot_training_history()
+
+    print("\n" + "="*80)
+    print("PIPELINE COMPLETO FINALIZADO!")
+    print("="*80)
 
 
 if __name__ == "__main__":

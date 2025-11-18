@@ -2,3 +2,5 @@ python-dotenv
 librosa
 numpy
 matplotlib
+tensorflow
+scikit-learn
