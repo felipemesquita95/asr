@@ -6,10 +6,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class FeatureAdjustmentSubsystem:
-    
+
     #os.getenv('SAVES_PATH')
-    
+
     def __init__(self) -> None:
+        self.test_utterance_index = int(os.getenv('TEST_UTTERANCE_INDEX'))
         print("Inicializando Subsistema de Ajuste de Features...")
 
     def get_frames(self, path, npy_file):
@@ -105,7 +106,7 @@ class FeatureAdjustmentSubsystem:
                 mfccs_path = os.path.join(os.getenv('SAVES_PATH'), f'{speaker}', f'{utterance}/coefficients.npy')
                 try:
                     normalized_mfccs = np.load(mfccs_path)
-                    if utterance == 5:
+                    if utterance == self.test_utterance_index:
                         test_data.append(normalized_mfccs)
                         test_labels.append(speaker - 1)
                     else:

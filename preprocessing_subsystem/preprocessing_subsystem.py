@@ -18,11 +18,17 @@ class PreprocessingSubsystem:
         self.num_utterances = int(os.getenv('NUM_UTTERANCES'))
         self.num_mfccs = int(os.getenv('NUM_MFCCS'))
         self.frame_size = int(os.getenv('FRAME_SIZE'))
+        self.pre_emphasis_coef = float(os.getenv('PRE_EMPHASIS_COEF'))
+        self.low_pass_cutoff = int(os.getenv('LOW_PASS_CUTOFF'))
+        self.target_sampling_rate = int(os.getenv('TARGET_SAMPLING_RATE'))
+        self.delta_delta_order = int(os.getenv('DELTA_DELTA_ORDER'))
 
         print("Inicializando subsistema de pré-processamento...")
 
 
-    def pre_emphasis(self, audio_signal, coef: float = 0.97):
+    def pre_emphasis(self, audio_signal, coef: float = None):
+        if coef is None:
+            coef = self.pre_emphasis_coef
         return np.append(audio_signal[0], audio_signal[1:] - coef * audio_signal[:-1])
 
     def load_audio(self, filepath):
@@ -58,7 +64,9 @@ class PreprocessingSubsystem:
         plt.savefig(output_path, dpi=300)
         plt.close()
 
-    def low_pass_filter(self, audio, sr, cutoff=4000):
+    def low_pass_filter(self, audio, sr, cutoff=None):
+        if cutoff is None:
+            cutoff = self.low_pass_cutoff
         nyquist = 0.5 * sr
         normal_cutoff = cutoff / nyquist
         b, a = butter(4, normal_cutoff, btype='low', analog=False)
@@ -105,16 +113,16 @@ class PreprocessingSubsystem:
                     audio_pre_emphasized = self.pre_emphasis(audio_filtered)
                     self.plot_frequency_spectrum(audio_pre_emphasized, sr, os.path.join(output_path, 'espectroPE.png'), 'Espectro de frequência após pré-ênfase')
 
-                    audio_resampled = self.resample_audio(audio_pre_emphasized, sr, 8000)
-                    self.plot_frequency_spectrum(audio_resampled, 8000, os.path.join(output_path, 'espectro8kHz.png'), 'Espectro de frequência após reamostragem')
+                    audio_resampled = self.resample_audio(audio_pre_emphasized, sr, self.target_sampling_rate)
+                    self.plot_frequency_spectrum(audio_resampled, self.target_sampling_rate, os.path.join(output_path, 'espectro8kHz.png'), 'Espectro de frequência após reamostragem')
 
-                    mfccs = self.extract_mfccs(audio_resampled, 8000, self.num_mfccs, self.frame_size)
+                    mfccs = self.extract_mfccs(audio_resampled, self.target_sampling_rate, self.num_mfccs, self.frame_size)
                     self.plot_mfccs(mfccs, os.path.join(output_path, 'mfccs.png'), 'Matriz de MFCCs')
 
                     delta = librosa.feature.delta(mfccs)
                     self.plot_mfccs(delta, os.path.join(output_path, 'delta.png'), 'Matriz de deltas')
 
-                    delta_delta = librosa.feature.delta(mfccs, order=2)
+                    delta_delta = librosa.feature.delta(mfccs, order=self.delta_delta_order)
                     self.plot_mfccs(delta_delta, os.path.join(output_path, 'deltaDelta.png'), 'Matriz de deltas-deltas')
 
                     np.save(os.path.join(output_path, 'mfccs.npy'), mfccs)
