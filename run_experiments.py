@@ -75,17 +75,21 @@ class ExperimentRunner:
         print(f"Resultados serão salvos em: {self.results_dir}")
         print("="*80)
 
+        # Pré-processamento UMA vez com 40 MFCCs (número máximo)
+        if not skip_preprocessing:
+            print(f"\n{'='*80}")
+            print(f"PRÉ-PROCESSAMENTO COM 40 MFCCs (máximo)")
+            print(f"{'='*80}")
+            print("Os experimentos com 10, 20, 30 MFCCs usarão subconjuntos destes 40.")
+            self.run_preprocessing(40)
+
         experiment_count = 0
         total_experiments = len(NUM_MFCC_OPTIONS) * len(ALL_EXPERIMENTS)
 
         for num_mfccs in NUM_MFCC_OPTIONS:
             print(f"\n{'='*80}")
-            print(f"PROCESSANDO COM {num_mfccs} MFCCs")
+            print(f"EXPERIMENTOS COM {num_mfccs} MFCCs")
             print(f"{'='*80}")
-
-            # Passo 1: Pré-processamento (se necessário)
-            if not skip_preprocessing:
-                self.run_preprocessing(num_mfccs)
 
             for exp_config in ALL_EXPERIMENTS:
                 experiment_count += 1
