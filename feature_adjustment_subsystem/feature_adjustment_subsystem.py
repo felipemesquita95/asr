@@ -11,6 +11,7 @@ class FeatureAdjustmentSubsystem:
 
     def __init__(self) -> None:
         self.test_utterance_index = int(os.getenv('TEST_UTTERANCE_INDEX'))
+        self.frame_strategy = os.getenv('FRAME_STRATEGY', 'max').lower()
         print("Inicializando Subsistema de Ajuste de Features...")
 
     def get_frames(self, path, npy_file):
@@ -125,18 +126,31 @@ class FeatureAdjustmentSubsystem:
         return training_data, test_data, training_labels, test_labels
 
     def prepare_to_experiment(self):
-        max_frames=0
+        # Determine target frames based on strategy
+        if self.frame_strategy == 'max':
+            target_frames = 0
+            for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
+                for utterance in range(1, int(os.getenv('NUM_UTTERANCES'))+ 1):
+                    mfccs_path = os.path.join(os.getenv('SAVES_PATH'), f'{speaker}', f'{utterance}')
+                    frames = self.get_frames(mfccs_path, 'mfccs.npy')
+                    if frames > target_frames:
+                        target_frames = frames
+            print(f"Estratégia 'max': O número de frames será ajustado para {target_frames} frames (máximo).")
 
-        for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
-            for utterance in range(1, int(os.getenv('NUM_UTTERANCES'))+ 1): 
-            
-                mfccs_path = os.path.join(os.getenv('SAVES_PATH'), f'{speaker}', f'{utterance}')
-        
-                if self.get_frames(mfccs_path, 'mfccs.npy') > max_frames:
-                    num_frames = self.get_frames(mfccs_path, 'mfccs.npy')
-                    max_frames = num_frames
-        
-        print(f"O número de frames será ajustado para {max_frames} frames.")
+        elif self.frame_strategy == 'min':
+            target_frames = float('inf')
+            for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
+                for utterance in range(1, int(os.getenv('NUM_UTTERANCES'))+ 1):
+                    mfccs_path = os.path.join(os.getenv('SAVES_PATH'), f'{speaker}', f'{utterance}')
+                    frames = self.get_frames(mfccs_path, 'mfccs.npy')
+                    if frames > 0 and frames < target_frames:
+                        target_frames = frames
+            print(f"Estratégia 'min': O número de frames será ajustado para {target_frames} frames (mínimo).")
+
+        else:
+            raise ValueError(f"FRAME_STRATEGY inválida: {self.frame_strategy}. Use 'max' ou 'min'.")
+
+        max_frames = target_frames
 
         for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
             for utterance in range(1, int(os.getenv('NUM_UTTERANCES'))+ 1): 

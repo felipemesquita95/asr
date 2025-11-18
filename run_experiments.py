@@ -238,16 +238,33 @@ class ExperimentRunner:
         # Caminho específico para os dados deste número de MFCCs
         mfcc_data_path = os.path.join(self.base_saves_path, f'mfcc{num_mfccs}_data')
 
-        # Encontrar número máximo de frames
-        max_frames = 0
-        for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
-            for utterance in range(1, int(os.getenv('NUM_UTTERANCES')) + 1):
-                mfccs_path = os.path.join(mfcc_data_path, f'{speaker}', f'{utterance}')
-                frames = feature_adj_subsys.get_frames(mfccs_path, 'mfccs.npy')
-                if frames > max_frames:
-                    max_frames = frames
+        # Determinar número de frames baseado na estratégia
+        frame_strategy = os.getenv('FRAME_STRATEGY', 'max').lower()
 
-        print(f"Número máximo de frames: {max_frames}")
+        if frame_strategy == 'max':
+            target_frames = 0
+            for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
+                for utterance in range(1, int(os.getenv('NUM_UTTERANCES')) + 1):
+                    mfccs_path = os.path.join(mfcc_data_path, f'{speaker}', f'{utterance}')
+                    frames = feature_adj_subsys.get_frames(mfccs_path, 'mfccs.npy')
+                    if frames > target_frames:
+                        target_frames = frames
+            print(f"Estratégia 'max': Número de frames = {target_frames} (máximo)")
+
+        elif frame_strategy == 'min':
+            target_frames = float('inf')
+            for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
+                for utterance in range(1, int(os.getenv('NUM_UTTERANCES')) + 1):
+                    mfccs_path = os.path.join(mfcc_data_path, f'{speaker}', f'{utterance}')
+                    frames = feature_adj_subsys.get_frames(mfccs_path, 'mfccs.npy')
+                    if frames > 0 and frames < target_frames:
+                        target_frames = frames
+            print(f"Estratégia 'min': Número de frames = {target_frames} (mínimo)")
+
+        else:
+            raise ValueError(f"FRAME_STRATEGY inválida: {frame_strategy}. Use 'max' ou 'min'.")
+
+        max_frames = target_frames
 
         # Equalizar frames
         for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):

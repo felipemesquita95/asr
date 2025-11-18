@@ -22,6 +22,8 @@ class PreprocessingSubsystem:
         self.low_pass_cutoff = int(os.getenv('LOW_PASS_CUTOFF'))
         self.target_sampling_rate = int(os.getenv('TARGET_SAMPLING_RATE'))
         self.delta_delta_order = int(os.getenv('DELTA_DELTA_ORDER'))
+        self.remove_silence = os.getenv('REMOVE_SILENCE', 'False').lower() == 'true'
+        self.silence_threshold_db = int(os.getenv('SILENCE_THRESHOLD_DB', '20'))
 
         print("Inicializando subsistema de pré-processamento...")
 
@@ -34,6 +36,22 @@ class PreprocessingSubsystem:
     def load_audio(self, filepath):
         audio, sr = librosa.load(filepath, sr=self.sampling_rate)
         return audio, sr
+
+    def remove_silence_from_audio(self, audio, sr):
+        """
+        Remove silence from audio signal based on threshold.
+
+        Args:
+            audio: Audio signal
+            sr: Sample rate
+
+        Returns:
+            Audio signal with silence removed
+        """
+        # Convert dB threshold to amplitude
+        # librosa.effects.trim uses top_db parameter (dB below reference to consider as silence)
+        trimmed_audio, _ = librosa.effects.trim(audio, top_db=self.silence_threshold_db)
+        return trimmed_audio
 
     def plot_time_domain(self, audio, sr, output_path):
         time = np.arange(0, len(audio)) / sr
@@ -103,6 +121,10 @@ class PreprocessingSubsystem:
                         os.makedirs(output_path)
 
                     audio, sr = self.load_audio(utterance_path)
+
+                    # Remove silence if enabled
+                    if self.remove_silence:
+                        audio = self.remove_silence_from_audio(audio, sr)
 
                     self.plot_time_domain(audio, sr, os.path.join(output_path, 'dominioTempo.png'))
                     self.plot_frequency_spectrum(audio, sr, os.path.join(output_path, 'espectro48kHz.png'), 'Espectro de frequência do arquivo .WAV')
