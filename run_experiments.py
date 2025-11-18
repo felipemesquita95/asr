@@ -75,21 +75,17 @@ class ExperimentRunner:
         print(f"Resultados serão salvos em: {self.results_dir}")
         print("="*80)
 
-        # Pré-processamento UMA vez com 40 MFCCs (número máximo)
-        if not skip_preprocessing:
-            print(f"\n{'='*80}")
-            print(f"PRÉ-PROCESSAMENTO COM 40 MFCCs (máximo)")
-            print(f"{'='*80}")
-            print("Os experimentos com 10, 20, 30 MFCCs usarão subconjuntos destes 40.")
-            self.run_preprocessing(40)
-
         experiment_count = 0
         total_experiments = len(NUM_MFCC_OPTIONS) * len(ALL_EXPERIMENTS)
 
         for num_mfccs in NUM_MFCC_OPTIONS:
             print(f"\n{'='*80}")
-            print(f"EXPERIMENTOS COM {num_mfccs} MFCCs")
+            print(f"PROCESSANDO COM {num_mfccs} MFCCs")
             print(f"{'='*80}")
+
+            # Pré-processamento para este número de MFCCs
+            if not skip_preprocessing:
+                self.run_preprocessing(num_mfccs)
 
             for exp_config in ALL_EXPERIMENTS:
                 experiment_count += 1
@@ -125,14 +121,22 @@ class ExperimentRunner:
         """Executa pré-processamento com número específico de MFCCs."""
         print(f"\nPré-processando com {num_mfccs} MFCCs...")
 
-        # Atualizar variável de ambiente temporariamente
+        # Atualizar variáveis de ambiente temporariamente
         os.environ['NUM_MFCCS'] = str(num_mfccs)
+
+        # Modificar SAVES_PATH para incluir pasta do MFCC
+        original_saves_path = self.base_saves_path
+        mfcc_saves_path = os.path.join(original_saves_path, f'mfcc{num_mfccs}_data')
+        os.environ['SAVES_PATH'] = mfcc_saves_path
 
         # Criar subsistema e processar
         preprocessing_subsys = PreprocessingSubsystem()
         preprocessing_subsys.preprocess_signal()
 
-        print(f"Pré-processamento com {num_mfccs} MFCCs concluído!")
+        # Restaurar SAVES_PATH original
+        os.environ['SAVES_PATH'] = original_saves_path
+
+        print(f"Pré-processamento com {num_mfccs} MFCCs concluído em: {mfcc_saves_path}")
 
     def run_single_experiment(self, num_mfccs, train_utterances, test_utterances, exp_name):
         """Executa um único experimento."""
@@ -231,11 +235,14 @@ class ExperimentRunner:
         """
         Prepara dados com divisão customizada de treino/teste.
         """
+        # Caminho específico para os dados deste número de MFCCs
+        mfcc_data_path = os.path.join(self.base_saves_path, f'mfcc{num_mfccs}_data')
+
         # Encontrar número máximo de frames
         max_frames = 0
         for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
             for utterance in range(1, int(os.getenv('NUM_UTTERANCES')) + 1):
-                mfccs_path = os.path.join(os.getenv('SAVES_PATH'), f'{speaker}', f'{utterance}')
+                mfccs_path = os.path.join(mfcc_data_path, f'{speaker}', f'{utterance}')
                 frames = feature_adj_subsys.get_frames(mfccs_path, 'mfccs.npy')
                 if frames > max_frames:
                     max_frames = frames
@@ -245,13 +252,13 @@ class ExperimentRunner:
         # Equalizar frames
         for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
             for utterance in range(1, int(os.getenv('NUM_UTTERANCES')) + 1):
-                mfccs_path = os.path.join(os.getenv('SAVES_PATH'), f'{speaker}', f'{utterance}')
+                mfccs_path = os.path.join(mfcc_data_path, f'{speaker}', f'{utterance}')
                 feature_adj_subsys.equalize_frames(max_frames, mfccs_path, 'mfccs.npy')
 
         # Padronizar (concatenar)
         for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
             for utterance in range(1, int(os.getenv('NUM_UTTERANCES')) + 1):
-                mfccs_path = os.path.join(os.getenv('SAVES_PATH'), f'{speaker}', f'{utterance}')
+                mfccs_path = os.path.join(mfcc_data_path, f'{speaker}', f'{utterance}')
                 npy_list = [f'mfccs_{max_frames}.npy']
                 feature_adj_subsys.standardize(mfccs_path, npy_list)
 
@@ -263,12 +270,9 @@ class ExperimentRunner:
 
         for speaker in range(1, int(os.getenv('NUM_SPEAKERS')) + 1):
             for utterance in range(1, int(os.getenv('NUM_UTTERANCES')) + 1):
-                mfccs_path = os.path.join(os.getenv('SAVES_PATH'), f'{speaker}', f'{utterance}/coefficients.npy')
+                mfccs_path = os.path.join(mfcc_data_path, f'{speaker}', f'{utterance}/coefficients.npy')
                 try:
                     normalized_mfccs = np.load(mfccs_path)
-
-                    # Extrair apenas os MFCCs necessários
-                    normalized_mfccs = normalized_mfccs[:num_mfccs, :]
 
                     if utterance in test_utterances:
                         test_data.append(normalized_mfccs)

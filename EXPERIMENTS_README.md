@@ -50,24 +50,44 @@ python run_experiments.py
 ## Estrutura de Resultados
 
 ```
-saves/experiments/
-├── mfcc10/
-│   ├── exp01_train1234_test5/
-│   │   ├── model.keras
-│   │   ├── training_curves.png
-│   │   ├── confusion_matrix.png
-│   │   └── result.json
-│   ├── exp02_train1235_test4/
+saves/
+│
+├── mfcc10_data/                          # Dados processados com 10 MFCCs
+│   ├── 1/
+│   │   ├── 1/
+│   │   │   ├── mfccs.npy
+│   │   │   ├── coefficients.npy
+│   │   │   └── ...
 │   │   └── ...
 │   └── ...
-├── mfcc20/
+│
+├── mfcc20_data/                          # Dados processados com 20 MFCCs
 │   └── ...
-├── mfcc30/
+│
+├── mfcc30_data/                          # Dados processados com 30 MFCCs
 │   └── ...
-├── mfcc40/
+│
+├── mfcc40_data/                          # Dados processados com 40 MFCCs
 │   └── ...
-├── results_summary.json    # Todos os resultados em JSON
-└── results_summary.csv     # Todos os resultados em CSV
+│
+└── experiments/                          # Resultados dos experimentos
+    ├── mfcc10/
+    │   ├── exp01_train1234_test5/
+    │   │   ├── model.keras
+    │   │   ├── training_curves.png
+    │   │   ├── confusion_matrix.png
+    │   │   └── result.json
+    │   ├── exp02_train1235_test4/
+    │   │   └── ...
+    │   └── ...
+    ├── mfcc20/
+    │   └── ...
+    ├── mfcc30/
+    │   └── ...
+    ├── mfcc40/
+    │   └── ...
+    ├── results_summary.json    # Todos os resultados em JSON
+    └── results_summary.csv     # Todos os resultados em CSV
 ```
 
 ## Resultados
