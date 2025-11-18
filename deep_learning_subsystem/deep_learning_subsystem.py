@@ -3,8 +3,11 @@ import os
 import numpy as np
 from tensorflow import keras
 from tensorflow.keras import layers, regularizers
-from sklearn.metrics import classification_report, confusion_matrix
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 load_dotenv()
 
@@ -13,9 +16,7 @@ class DeepLearningSubsystem:
         # Parâmetros da arquitetura
         self.conv1d_filters = int(os.getenv('CONV1D_FILTERS'))
         self.conv1d_kernel_size = int(os.getenv('CONV1D_KERNEL_SIZE'))
-        self.pool_size = int(os.getenv('POOL_SIZE'))
         self.dense_units = int(os.getenv('DENSE_UNITS'))
-        self.dropout_rate = float(os.getenv('DROPOUT_RATE'))
 
         # Parâmetros de regularização
         self.l2_reg = float(os.getenv('L2_REGULARIZATION'))
@@ -24,7 +25,12 @@ class DeepLearningSubsystem:
         self.batch_size = int(os.getenv('BATCH_SIZE'))
         self.epochs = int(os.getenv('EPOCHS'))
         self.learning_rate = float(os.getenv('LEARNING_RATE'))
-        self.validation_split = float(os.getenv('VALIDATION_SPLIT'))
+
+        # Parâmetros de callbacks
+        self.early_stopping_patience = int(os.getenv('EARLY_STOPPING_PATIENCE'))
+        self.reduce_lr_patience = int(os.getenv('REDUCE_LR_PATIENCE'))
+        self.reduce_lr_factor = float(os.getenv('REDUCE_LR_FACTOR'))
+        self.reduce_lr_min_lr = float(os.getenv('REDUCE_LR_MIN_LR'))
 
         # Configurações gerais
         self.num_speakers = int(os.getenv('NUM_SPEAKERS'))
@@ -36,168 +42,243 @@ class DeepLearningSubsystem:
 
         print("Inicializando Subsistema de aprendizado profundo...")
 
-    def build_model(self, input_shape):
+    def criarModelo(self, input_shape):
         """
         Constrói o modelo de rede neural para reconhecimento de locutor.
 
-        Arquitetura:
+        Arquitetura (baseada no código original):
         - Conv1D: Extrai padrões temporais dos MFCCs
-        - MaxPooling1D: Reduz dimensionalidade
         - Flatten: Transforma em vetor 1D
-        - Dense: Camada totalmente conectada com regularização
-        - Dropout: Previne overfitting
+        - Dense: Camada totalmente conectada com regularização L2
         - Output: Classificação softmax para N locutores
         """
-        model = keras.Sequential([
-            # Camada de entrada
-            layers.Input(shape=input_shape),
-
+        modelo = keras.Sequential([
             # Conv1D para extrair features temporais
             layers.Conv1D(
                 filters=self.conv1d_filters,
                 kernel_size=self.conv1d_kernel_size,
                 activation='relu',
                 kernel_regularizer=regularizers.l2(self.l2_reg),
-                padding='same'
+                input_shape=input_shape
             ),
-
-            # MaxPooling para reduzir dimensionalidade
-            layers.MaxPooling1D(pool_size=self.pool_size),
 
             # Flatten para conectar com camada densa
             layers.Flatten(),
 
-            # Camada densa com dropout e regularização
+            # Camada densa com regularização L2
             layers.Dense(
                 self.dense_units,
                 activation='relu',
                 kernel_regularizer=regularizers.l2(self.l2_reg)
             ),
-            layers.Dropout(self.dropout_rate),
 
             # Camada de saída (classificação multi-classe)
             layers.Dense(self.num_speakers, activation='softmax')
         ])
 
         # Compilar modelo
-        optimizer = keras.optimizers.Adam(learning_rate=self.learning_rate)
-        model.compile(
-            optimizer=optimizer,
+        opt = Adam(learning_rate=self.learning_rate)
+        modelo.compile(
+            optimizer=opt,
             loss='sparse_categorical_crossentropy',
             metrics=['accuracy']
         )
 
-        self.model = model
+        self.model = modelo
         print("\nArquitetura do modelo:")
-        model.summary()
+        modelo.summary()
 
-        return model
+        return modelo
 
-    def train(self, training_data, training_labels, test_data=None, test_labels=None):
+    def treinarModelo(self, dadosTreinamento, rotulosTreinamento, dadosTeste, rotulosTeste):
         """
         Treina o modelo de reconhecimento de locutor.
 
         Args:
-            training_data: Dados de treino (N, features, frames)
-            training_labels: Labels dos locutores (N,)
-            test_data: Dados de teste (opcional)
-            test_labels: Labels de teste (opcional)
+            dadosTreinamento: Dados de treino (N, features, frames)
+            rotulosTreinamento: Labels dos locutores (N,)
+            dadosTeste: Dados de teste
+            rotulosTeste: Labels de teste
         """
         if self.model is None:
-            input_shape = (training_data.shape[1], training_data.shape[2])
-            self.build_model(input_shape)
+            input_shape = (dadosTreinamento.shape[1], dadosTreinamento.shape[2])
+            self.criarModelo(input_shape)
 
         print(f"\nIniciando treinamento...")
-        print(f"Dados de treino: {training_data.shape}")
-        print(f"Labels de treino: {training_labels.shape}")
+        print(f"Dados de treino: {dadosTreinamento.shape}")
+        print(f"Labels de treino: {rotulosTreinamento.shape}")
+        print(f"Dados de teste: {dadosTeste.shape}")
+        print(f"Labels de teste: {rotulosTeste.shape}")
         print(f"Batch size: {self.batch_size}")
         print(f"Epochs: {self.epochs}")
         print(f"Learning rate: {self.learning_rate}")
 
-        # Callbacks para melhorar o treinamento
-        callbacks = [
-            keras.callbacks.EarlyStopping(
-                monitor='val_loss',
-                patience=10,
-                restore_best_weights=True,
-                verbose=1
-            ),
-            keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss',
-                factor=0.5,
-                patience=5,
-                min_lr=1e-6,
-                verbose=1
-            )
-        ]
-
-        # Transpor dados: (N, features, frames) -> (N, frames, features)
-        # Conv1D espera (batch, timesteps, features)
-        training_data_transposed = np.transpose(training_data, (0, 2, 1))
-
-        # Treinar modelo
-        self.history = self.model.fit(
-            training_data_transposed,
-            training_labels,
-            batch_size=self.batch_size,
-            epochs=self.epochs,
-            validation_split=self.validation_split,
-            callbacks=callbacks,
+        # Callbacks
+        early_stopping = EarlyStopping(
+            monitor='val_loss',
+            patience=self.early_stopping_patience,
+            restore_best_weights=True,
             verbose=1
         )
 
+        reduce_lr = ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=self.reduce_lr_factor,
+            patience=self.reduce_lr_patience,
+            min_lr=self.reduce_lr_min_lr,
+            verbose=1
+        )
+
+        # Transpor dados: (N, features, frames) -> (N, frames, features)
+        # Conv1D espera (batch, timesteps, features)
+        dadosTreinamento_transposed = np.transpose(dadosTreinamento, (0, 2, 1))
+        dadosTeste_transposed = np.transpose(dadosTeste, (0, 2, 1))
+
+        # Treinar modelo
+        historico = self.model.fit(
+            dadosTreinamento_transposed,
+            rotulosTreinamento,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            validation_data=(dadosTeste_transposed, rotulosTeste),
+            callbacks=[reduce_lr, early_stopping],
+            verbose=1
+        )
+
+        self.history = historico
         print("\nTreinamento concluído!")
 
-        # Se houver dados de teste, avaliar
-        if test_data is not None and test_labels is not None:
-            self.evaluate(test_data, test_labels)
+        return self.model, historico
 
-        return self.history
-
-    def evaluate(self, test_data, test_labels):
+    def avaliarModelo(self, dadosTeste, rotulosTeste, historicoEpocas=None):
         """
         Avalia o modelo nos dados de teste.
 
         Args:
-            test_data: Dados de teste (N, features, frames)
-            test_labels: Labels verdadeiros (N,)
+            dadosTeste: Dados de teste (N, features, frames)
+            rotulosTeste: Labels verdadeiros (N,)
+            historicoEpocas: Histórico de treinamento (opcional)
         """
-        print("\n" + "="*60)
-        print("AVALIAÇÃO NO CONJUNTO DE TESTE")
-        print("="*60)
+        if historicoEpocas is None:
+            historicoEpocas = self.history
+
+        print("\n" + "="*80)
+        print("AVALIAÇÃO DO MODELO")
+        print("="*80)
 
         # Transpor dados
-        test_data_transposed = np.transpose(test_data, (0, 2, 1))
+        dadosTeste_transposed = np.transpose(dadosTeste, (0, 2, 1))
+
+        # Fazer previsões com o modelo
+        previsoesTeste = self.model.predict(dadosTeste_transposed, verbose=0)
+        rotulosPreditos = np.argmax(previsoesTeste, axis=1)
 
         # Avaliar
-        loss, accuracy = self.model.evaluate(test_data_transposed, test_labels, verbose=0)
-
+        loss, accuracy = self.model.evaluate(dadosTeste_transposed, rotulosTeste, verbose=0)
         print(f"\nLoss: {loss:.4f}")
         print(f"Acurácia: {accuracy*100:.2f}%")
 
-        # Predições
-        predictions = self.model.predict(test_data_transposed, verbose=0)
-        predicted_labels = np.argmax(predictions, axis=1)
+        # Calcular métricas adicionais
+        precisaoMedia = precision_score(rotulosTeste, rotulosPreditos, average='macro', zero_division=0)
+        revocacaoMedia = recall_score(rotulosTeste, rotulosPreditos, average='macro', zero_division=0)
+        f1scoreMedia = f1_score(rotulosTeste, rotulosPreditos, average='macro', zero_division=0)
 
-        # Relatório de classificação
-        print("\n" + "-"*60)
-        print("RELATÓRIO DE CLASSIFICAÇÃO")
-        print("-"*60)
-        print(classification_report(test_labels, predicted_labels, zero_division=0))
+        print("\nMétricas:")
+        print(f"Precisão média: {precisaoMedia:.4f}")
+        print(f"Revocação média: {revocacaoMedia:.4f}")
+        print(f"F1-score médio: {f1scoreMedia:.4f}")
 
-        # Matriz de confusão (resumida para não poluir)
-        conf_matrix = confusion_matrix(test_labels, predicted_labels)
-        accuracy_per_speaker = conf_matrix.diagonal() / conf_matrix.sum(axis=1)
+        # Plotar curvas de loss e accuracy
+        if historicoEpocas is not None:
+            self.plotar_curvas_treinamento(historicoEpocas)
 
-        print("\n" + "-"*60)
-        print("ACURÁCIA POR LOCUTOR")
-        print("-"*60)
-        print(f"Média: {np.mean(accuracy_per_speaker)*100:.2f}%")
-        print(f"Mediana: {np.median(accuracy_per_speaker)*100:.2f}%")
-        print(f"Mínima: {np.min(accuracy_per_speaker)*100:.2f}%")
-        print(f"Máxima: {np.max(accuracy_per_speaker)*100:.2f}%")
+        # Plotar matriz de confusão
+        self.plotar_matriz_confusao(rotulosTeste, rotulosPreditos)
 
-        return accuracy, predicted_labels
+        return accuracy, rotulosPreditos
+
+    def plotar_curvas_treinamento(self, historicoEpocas):
+        """
+        Plota curvas de Loss e Accuracy do treinamento.
+        """
+        trainingLoss = historicoEpocas.history['loss']
+        validationLoss = historicoEpocas.history['val_loss']
+        trainingAccuracy = historicoEpocas.history['accuracy']
+        validationAccuracy = historicoEpocas.history['val_accuracy']
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+        # Loss
+        ax1.plot(trainingLoss, label='Training Loss', linewidth=2)
+        ax1.plot(validationLoss, label='Validation Loss', linewidth=2)
+        ax1.set_xlabel('Epoch', fontsize=10)
+        ax1.set_ylabel('Loss', fontsize=10)
+        ax1.set_title('Loss Curves', fontsize=12)
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
+        # Accuracy
+        ax2.plot(trainingAccuracy, label='Training Accuracy', linewidth=2)
+        ax2.plot(validationAccuracy, label='Validation Accuracy', linewidth=2)
+        ax2.set_xlabel('Epoch', fontsize=10)
+        ax2.set_ylabel('Accuracy', fontsize=10)
+        ax2.set_title('Accuracy Curves', fontsize=12)
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+
+        output_path = os.path.join(self.saves_path, 'training_curves.png')
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=300)
+        print(f"\nCurvas de treinamento salvas em: {output_path}")
+        plt.close()
+
+    def plotar_matriz_confusao(self, rotulosTeste, rotulosPreditos):
+        """
+        Plota a matriz de confusão.
+        """
+        # Calcular a matriz de confusão
+        cm = confusion_matrix(rotulosTeste, rotulosPreditos)
+
+        # Plotar a matriz de confusão
+        plt.figure(figsize=(20, 18))
+        sns.heatmap(
+            cm,
+            annot=True,
+            cmap='Blues',
+            fmt='g',
+            cbar=True,
+            square=True,
+            annot_kws={"size": 6}
+        )
+
+        # Define manualmente os rótulos dos eixos
+        rotulosClasses = [f"Locutor {i}" for i in range(self.num_speakers)]
+        plt.xticks(
+            ticks=np.arange(self.num_speakers) + 0.5,
+            labels=rotulosClasses,
+            rotation=90,
+            ha='center',
+            fontsize=6
+        )
+        plt.yticks(
+            ticks=np.arange(self.num_speakers) + 0.5,
+            labels=rotulosClasses,
+            rotation=0,
+            va='center',
+            fontsize=6
+        )
+
+        plt.title('Matriz de Confusão', fontsize=14)
+        plt.xlabel('Predições', fontsize=12)
+        plt.ylabel('Rótulos Verdadeiros', fontsize=12)
+
+        output_path = os.path.join(self.saves_path, 'confusion_matrix.png')
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        print(f"Matriz de confusão salva em: {output_path}")
+        plt.close()
 
     def predict(self, data):
         """
@@ -246,43 +327,16 @@ class DeepLearningSubsystem:
         self.model = keras.models.load_model(filepath)
         print(f"\nModelo carregado de: {filepath}")
 
-    def plot_training_history(self, output_path=None):
-        """
-        Plota o histórico de treinamento (loss e accuracy).
+    # Aliases para manter compatibilidade
+    def train(self, training_data, training_labels, test_data=None, test_labels=None):
+        """Alias para treinarModelo mantendo compatibilidade com código anterior"""
+        if test_data is None or test_labels is None:
+            raise ValueError("Dados de teste são obrigatórios para esta arquitetura")
 
-        Args:
-            output_path: Caminho para salvar o gráfico (opcional)
-        """
-        if self.history is None:
-            print("Nenhum histórico de treinamento disponível.")
-            return
+        modelo, historico = self.treinarModelo(training_data, training_labels, test_data, test_labels)
+        self.avaliarModelo(test_data, test_labels, historico)
+        return historico
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-
-        # Loss
-        ax1.plot(self.history.history['loss'], label='Treino', linewidth=2)
-        ax1.plot(self.history.history['val_loss'], label='Validação', linewidth=2)
-        ax1.set_title('Loss durante o treinamento', fontsize=12)
-        ax1.set_xlabel('Época', fontsize=10)
-        ax1.set_ylabel('Loss', fontsize=10)
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-
-        # Accuracy
-        ax2.plot(self.history.history['accuracy'], label='Treino', linewidth=2)
-        ax2.plot(self.history.history['val_accuracy'], label='Validação', linewidth=2)
-        ax2.set_title('Acurácia durante o treinamento', fontsize=12)
-        ax2.set_xlabel('Época', fontsize=10)
-        ax2.set_ylabel('Acurácia', fontsize=10)
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-
-        plt.tight_layout()
-
-        if output_path is None:
-            output_path = os.path.join(self.saves_path, 'training_history.png')
-
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=300)
-        print(f"\nGráfico de treinamento salvo em: {output_path}")
-        plt.close()
+    def evaluate(self, test_data, test_labels):
+        """Alias para avaliarModelo mantendo compatibilidade com código anterior"""
+        return self.avaliarModelo(test_data, test_labels)

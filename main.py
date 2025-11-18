@@ -29,7 +29,7 @@ def main():
 
     # Passo 3: Treinar o modelo de deep learning
     print("\n" + "="*80)
-    print("PASSO 3: TREINAMENTO DO MODELO")
+    print("PASSO 3: TREINAMENTO E AVALIAÇÃO DO MODELO")
     print("="*80)
     asr_sys.deep_learning_subsys.train(
         asr_sys.training_data,
@@ -38,12 +38,11 @@ def main():
         asr_sys.test_labels
     )
 
-    # Passo 4: Salvar modelo e gráficos
+    # Passo 4: Salvar modelo
     print("\n" + "="*80)
-    print("PASSO 4: SALVANDO RESULTADOS")
+    print("PASSO 4: SALVANDO MODELO")
     print("="*80)
     asr_sys.deep_learning_subsys.save_model()
-    asr_sys.deep_learning_subsys.plot_training_history()
 
     print("\n" + "="*80)
     print("PIPELINE COMPLETO FINALIZADO!")
